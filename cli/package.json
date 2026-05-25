@@ -1,0 +1,50 @@
+{
+  "name": "claude-explains",
+  "version": "1.0.0",
+  "description": "HTML/CSS/JS to video renderer with deterministic animation capture and TTS narration for LLM agent pipelines",
+  "type": "module",
+  "bin": {
+    "claude-explains": "./bin/claude-explains.js"
+  },
+  "scripts": {
+    "check": "node --check src/cli.js && node --check src/renderer.js && node --check src/tts.js && node --check src/components.js && node --check src/templates.js && node --check src/review-ui.js && node --check src/assembler.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "docs/"
+  ],
+  "keywords": [
+    "cli",
+    "video",
+    "html-to-video",
+    "puppeteer",
+    "ffmpeg",
+    "tts",
+    "text-to-speech",
+    "llm",
+    "ai-agent",
+    "animation",
+    "headless-browser",
+    "video-generation",
+    "narration",
+    "deterministic-rendering",
+    "automation"
+  ],
+  "author": "Noel Puig",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noelpuig/claude-explains.git"
+  },
+  "homepage": "https://github.com/noelpuig/claude-explains#readme",
+  "bugs": {
+    "url": "https://github.com/noelpuig/claude-explains/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "puppeteer": "^24.0.0"
+  }
+}

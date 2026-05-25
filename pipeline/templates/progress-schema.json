@@ -1,0 +1,40 @@
+{
+  "$comment": "Schema for progress.json — the orchestrator's persistent state file",
+  "example": {
+    "video": "peripheral-equipment-masterclass",
+    "human_review": true,
+    "max_quality": false,
+    "target_depth": "medium",
+    "phase": "human_review",
+    "phases_completed": ["plan", "diagrams", "scenes", "timing", "assembly"],
+    "total_chapters": 15,
+    "total_scenes": 312,
+    "completed_chapters": 15,
+    "completed_scenes": 312,
+    "current_task": "waiting_for_user_review",
+    "review_iterations": 1,
+    "review_file": "assembly/review_review.html",
+    "quality_scores": {
+      "ch01": { "scenes": 22, "pass": 22, "avg_appear": 6.3, "avg_transforms": 1.8 }
+    },
+    "diagrams": {
+      "hdd_top_view.svg": { "status": "verified", "issues": 0 }
+    },
+    "timestamp": "2026-05-24T14:30:00Z"
+  },
+  "phases": [
+    "plan",
+    "diagrams",
+    "scenes",
+    "timing",
+    "assembly",
+    "human_review",
+    "render",
+    "done"
+  ],
+  "notes": {
+    "human_review_field": "Set at pipeline start. true = pause for user annotations after assembly. false = skip straight to render.",
+    "review_iterations": "Counts how many review→fix→review cycles have run. Useful for detecting if the user is never satisfied (suggest different approach after 3+ iterations).",
+    "current_task": "During human_review phase, set to 'waiting_for_user_review' so the orchestrator knows to prompt the user, not start working."
+  }
+}

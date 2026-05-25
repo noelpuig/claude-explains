@@ -1,0 +1,20 @@
+node_modules/
+projects/
+temp/
+
+# Build artifacts
+*.mp4
+*.wav
+*.mp3
+*_bundle.html
+*_review.html
+*_preview_*.png
+*_storyboard.png
+.storyboard_tmp/
+.pdf_tmp/
+
+# Internal planning docs
+cli/docs/plans/
+
+# Test outputs
+cli/test/**

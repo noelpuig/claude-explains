@@ -1,0 +1,48 @@
+name: Bug Report
+description: Report a bug in claude-explains
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: The exact command you ran
+      render: bash
+    validations:
+      required: true
+  - type: textarea
+    id: html
+    attributes:
+      label: HTML Input
+      description: The HTML file or a minimal reproduction
+      render: html
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Paste the stdout/stderr output
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "Output of: node bin/claude-explains.js --help | head -1"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Linux
+        - macOS
+        - Windows (WSL)
+    validations:
+      required: true
