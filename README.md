@@ -23,9 +23,13 @@ Claude handles the script, the scene design, the voiceover, the animation timing
 
 ### Advanced Example
 
-The more detail you give, the better the result:
+The more detail you give, the better the result. Here's a real-world example creating a promotional video for this repo:
 
-> *"Scan the project in ./firmware and produce a 5-minute claude-explains walkthrough of the microcontroller's RAM memory layout using a diagram that persists on screen while being explained rather than appearing and disappearing between slides — the viewer should never lose positional context or visual continuity. The diagram dynamically transforms with the narration: zooming into regions, spawning arrows to point at referenced addresses, shifting colors to focus attention on the area being discussed, and updating surrounding labels as context evolves. This should not be a static slide presentation — it must be a living diagram that the narration drives. Use a white grayscale theme where the only color comes from voice-synced highlights on the exact words the narrator is speaking at each moment, keeping viewer focus locked to what's being said. Pace the narration for real-time comprehension: pause briefly after dense concepts to let them sink in, give harder sections more breathing room, and re-explain ideas that were introduced earlier since the viewer cannot rewind. Use local TTS at maximum quality for narration. Read claude-explains' help guides before writing any code to ensure maximum quality, and review the storyboard before rendering the final video."*
+> *"/goal Follow all rules in context strictly, create a promotional video about this repo, claude-explains that we can put in the README- the target will be general people visiting the repo for the first time. It must feature the same ASCII title as the banner with the exact same unicode characters, font, and colors. Here is how the title is built: [Pasted text #1 +33 lines] with the colors colors: background: #0d1117, tagline: #94a3b8 and gradient: linear-gradient(to right, #8bdeda 0%, #43add0 25%, #998ee0 50%, #e17dc2 75%, #ef9393 100%). The rest of the animation must be really dynamic, include complex canvas animations, and get content from the original README. Use examples, like having an animation typing a prompt that smoothly slides to one side so the main space can show the black hole animation to represent the AI creating the result right after the prompt. Or for another example, use an animation showing how the annotations work to tell the user they have easy manual control over the results. Use manual verification every 5 frames with batches of 2 subagents at a time scanning 10 images each."*
+
+https://github.com/user-attachments/assets/f743ad30-5b9e-4679-9e4b-40a5e75f6893
+
+This result was done using Claude Opus 4.6, it took about 20 minutes with 10 minutes being TTS & video rendering. Only minor issues were found with the banner title being unaligned.
 
 ## What You Can Create
 
