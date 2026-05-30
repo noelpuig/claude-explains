@@ -9,7 +9,7 @@ Part of the claude-explains repo. This directory contains the Claude-powered pip
 ```
 pipeline/
 ├── .claude/
-│   ├── agents/         ← 7 agents (orchestrator, chapter-coordinator, scene-author, diagram-author, narration-writer, timing-engineer, visual-verifier)
+│   ├── agents/         ← 8 agents (orchestrator, planner, chapter-coordinator, scene-author, diagram-author, narration-writer, timing-engineer, visual-verifier)
 │   └── skills/         ← 3 skills (/make-video, /verify-diagram, /make-chapter)
 ├── briefings/          ← Canonical rule files read by sub-agents from disk
 └── templates/          ← JSON schemas (progress, plans, timelines)
@@ -24,15 +24,28 @@ videos/
 ├── pipeline/
 └── projects/
     └── my-video/
+        ├── references/        source material, research, links — factual truth for the video
         ├── plan/              outline.json, chapter plans, scene plans
         ├── diagrams/          standalone visual files (SVG, HTML/CSS, Canvas)
-        ├── scenes/            per-scene HTML files (max 200 lines each)
+        ├── scenes/            per-scene HTML files
         ├── timing/            TTS timing data per chapter
         ├── chapters/          assembled chapter HTML files
         ├── assembly/          final assembled HTML + review pages
         ├── output/            rendered MP4
         └── progress.json      pipeline state (survives compaction)
 ```
+
+## References Folder
+
+Every project has a `references/` folder that serves as the **single source of factual truth** for the video content. Before planning or writing anything, agents must consult this folder for the material they are explaining.
+
+Contents may include:
+- **Source files** — code, configs, specs, or documents being explained
+- **Research markdown** — notes, summaries, or prior research on the topic
+- **External links** — URLs to documentation, papers, or references
+- **Paths to other resources** — pointers to files elsewhere on the system
+
+All factual claims in narration, diagrams, and scenes must be grounded in `references/`. If the references are insufficient, agents should flag what's missing rather than inventing information.
 
 ## How to Create a Video
 
@@ -46,9 +59,9 @@ claude
 
 ## Pipeline Stages
 
-1. **Plan** — outline, chapter plans, scene plans, narration scripts
+1. **Plan** — planner agent creates design brief (color palette, content plan, watchlist) + outline
 2. **Diagrams** — standalone SVGs, each verified by visual-verifier
-3. **Scenes** — per-scene HTML (max 200 lines), each validated by CLI
+3. **Scenes** — per-scene HTML, each validated by CLI
 4. **Timing** — TTS analysis, timestamp mapping to scenes
 5. **Assembly** — combine into final HTML, storyboard, automated quality checks
 6. **Human Review** — if opted in: interactive review HTML, user annotations, fix loop
@@ -79,7 +92,6 @@ If **standard**: automated CLI validation + storyboard checks only. No visual in
 ## Key Rules
 
 - **Sub-agents read rules from `briefings/` on disk.** Never paraphrase rules in prompts.
-- **No agent writes files larger than 200 lines.** The CLI assembles large files.
 - **Progress survives compaction.** The orchestrator writes `progress.json` after each unit.
 - **Quality is CLI-verified, not self-reported.** Sub-agents run `--validate` and `--preview`.
 - **Scene 300 must match scene 1.** Quality does not degrade over time.

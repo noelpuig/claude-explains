@@ -25,7 +25,7 @@ async function launchPage(htmlPath, width, height, opts = {}) {
   const browser = await puppeteer.launch(LAUNCH_OPTS);
   try {
     const page = await browser.newPage();
-    await page.setViewport({ width, height, deviceScaleFactor: 1 });
+    await page.setViewport({ width, height, deviceScaleFactor: 2 });
     await page.evaluateOnNewDocument(TIME_CONTROL_SCRIPT);
     if (opts.components !== false) {
       await page.evaluateOnNewDocument(COMPONENTS_SCRIPT);
@@ -64,7 +64,7 @@ export async function previewFrame(htmlPath, timeMs, width, height, outputPath) 
   const { browser, page } = await launchPage(htmlPath, width, height);
   try {
     const frameDelta = 1000 / 30;
-    const steps = Math.round(timeMs / frameDelta);
+    const steps = Math.floor(timeMs / frameDelta);
     for (let i = 0; i < steps; i++) {
       await page.evaluate((d) => window.__claudeVideo.tick(d), frameDelta);
     }
@@ -89,7 +89,7 @@ export async function previewFrame(htmlPath, timeMs, width, height, outputPath) 
 export async function renderFrames(htmlPath, options, onFrame) {
   const { width, height, fps, duration } = options;
   const frameDelta = 1000 / fps;
-  const totalFrames = Math.ceil(fps * duration);
+  const totalFrames = Math.round(fps * duration);
 
   const { browser, page } = await launchPage(htmlPath, width, height);
   try {
@@ -116,6 +116,7 @@ export async function renderStoryboard(htmlPath, count, duration, width, height,
   const tmpDir = join(dirname(outputPath), '.storyboard_tmp');
   mkdirSync(tmpDir, { recursive: true });
 
+  const framePaths = [];
   try {
     const frameDelta = 1000 / 30;
     const timestamps = [];
@@ -123,7 +124,6 @@ export async function renderStoryboard(htmlPath, count, duration, width, height,
       timestamps.push((i / (count - 1 || 1)) * duration);
     }
 
-    const framePaths = [];
     let currentTime = 0;
 
     for (let i = 0; i < timestamps.length; i++) {
@@ -141,22 +141,23 @@ export async function renderStoryboard(htmlPath, count, duration, width, height,
 
     const cols = Math.ceil(Math.sqrt(count));
     const rows = Math.ceil(count / cols);
+    const tileW = Math.round(width / 4);
+    const tileH = Math.round(height / 4);
     const inputs = framePaths.map(f => `-i "${f}"`).join(' ');
     execSync(
       `ffmpeg -y ${inputs} -filter_complex "` +
-      framePaths.map((_, i) => `[${i}:v]scale=480:270[s${i}]`).join(';') +
+      framePaths.map((_, i) => `[${i}:v]scale=${tileW}:${tileH}[s${i}]`).join(';') +
       ';' + Array.from({ length: count }, (_, i) => `[s${i}]`).join('') +
       `xstack=inputs=${count}:layout=` +
-      Array.from({ length: count }, (_, i) => `${(i % cols) * 480}_${Math.floor(i / cols) * 270}`).join('|') +
+      Array.from({ length: count }, (_, i) => `${(i % cols) * tileW}_${Math.floor(i / cols) * tileH}`).join('|') +
       `" "${outputPath}"`,
       { stdio: 'pipe', timeout: 30000 }
     );
 
-    framePaths.forEach(f => { try { unlinkSync(f); } catch {} });
-    try { rmdirSync(tmpDir); } catch {}
-
     return { output: outputPath, frames: timestamps.map((t, i) => ({ index: i, time: Math.round(t * 1000) / 1000 })) };
   } finally {
+    framePaths.forEach(f => { try { unlinkSync(f); } catch {} });
+    try { rmdirSync(tmpDir); } catch {}
     await browser.close();
   }
 }
@@ -330,7 +331,9 @@ export async function validateHTML(htmlPath, width, height) {
         if (skipTags.has(el.tagName)) return;
         const style = getComputedStyle(el);
         if (style.display === 'none' || style.visibility === 'hidden') return;
-        const text = el.childNodes.length === 1 && el.childNodes[0].nodeType === 3 ? el.textContent.trim() : '';
+        const hasDirectText = Array.from(el.childNodes).some(n => n.nodeType === 3 && n.textContent.trim().length > 0);
+        if (!hasDirectText) return;
+        const text = el.textContent.trim();
         if (!text) return;
 
         const fontSize = parseFloat(style.fontSize);
@@ -438,8 +441,8 @@ export async function validateHTML(htmlPath, width, height) {
         textEls.forEach(el => {
           const s = getComputedStyle(el);
           if (s.display === 'none' || s.visibility === 'hidden') return;
-          const text = el.childNodes.length === 1 && el.childNodes[0].nodeType === 3 ? el.textContent.trim() : '';
-          if (!text) return;
+          const hasDirectText = Array.from(el.childNodes).some(n => n.nodeType === 3 && n.textContent.trim().length > 0);
+          if (!hasDirectText) return;
           const fs = parseFloat(s.fontSize);
           if (fs > maxFS) maxFS = fs;
         });
@@ -495,7 +498,7 @@ export async function validateHTML(htmlPath, width, height) {
         const src = img.getAttribute('src');
         if (src && src.startsWith('http')) {
           try {
-            const resp = await fetch(src, { method: 'HEAD', mode: 'no-cors' });
+            const resp = await fetch(src, { method: 'HEAD' });
             results.push({ src: src.slice(0, 80), status: resp.status, ok: resp.ok });
           } catch (e) {
             results.push({ src: src.slice(0, 80), status: 0, ok: false, error: e.message });

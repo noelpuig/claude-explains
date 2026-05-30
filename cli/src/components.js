@@ -369,5 +369,14 @@ export const COMPONENTS_SCRIPT = `
   }
   customElements.define('anim-text', H2VAnimText);
 
+  // Inject CSS unconditionally on page load — highlight effects (h2v-hl-color,
+  // h2v-hl-underline, etc.) and appear animations require this CSS even when
+  // no custom elements are present in the document.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectCSS);
+  } else {
+    injectCSS();
+  }
+
 })();
 `;

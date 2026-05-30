@@ -26,18 +26,45 @@ Do NOT proceed until the user answers ALL three.
 >    - **Standard** (~Y min) — Clear explanations with examples.
 >    - **Deep** (~Z min) — Full deep-dive, exercises, derivations, summaries.
 
-After the user answers, choose ONE accent color for the entire video and confirm it
-with the user. Pick based on the topic's tone (coral/red for energy, teal for tech,
-blue for corporate, green for nature/growth). State: "I'll use **#XXXXXX** as the
-accent color throughout." The user can override with a specific color.
+After the user answers, spawn the **planner** agent immediately. Do NOT pick
+colors yourself. The planner creates `plan/design-brief.json` with the full
+color palette and content plan. When it returns, confirm the accent color with
+the user: "I'll use **#XXXXXX** as the accent color throughout."
 
 Store in progress.json: `"human_review"`, `"max_quality"`, `"target_depth"`,
-`"estimated_duration_min"`, `"accent_color": "#XXXXXX"`. If progress.json already
-exists with answers, confirm with the user and resume from the stored phase.
+`"estimated_duration_min"`, `"accent_color": "#XXXXXX"`, and the full palette
+from the design brief. If progress.json already exists with answers, confirm
+with the user and resume from the stored phase.
 
-Every sub-agent delegation must include the accent color. Every scene, diagram,
-and chapter must use this exact color for `.accent { color: #XXXXXX }`. The
-accent color MUST NOT change between scenes, chapters, or diagrams.
+Every sub-agent delegation must include the path to `plan/design-brief.json`.
+Sub-agents read colors from this file. The accent color MUST NOT change between
+scenes, chapters, or diagrams.
+
+Every sub-agent delegation must also include the path to `references/`.
+This folder is the **single source of factual truth** for the video. It may
+contain source files, research markdown, external links, or paths to other
+resources. All explanations, narration, and diagrams must be grounded in the
+contents of `references/`. If the references are insufficient for a given
+topic, the agent must flag what's missing — never invent information.
+
+## Dark Mode Color Rules (MANDATORY)
+
+All videos use dark mode. Backgrounds must have **exactly 0% saturation** in HSL.
+
+| Role | Correct range | HSL |
+|------|--------------|-----|
+| Main background | #0d0d0d – #141414 | hsl(0, 0%, 5–8%) |
+| Surface/panel | #1a1a1a – #222222 | hsl(0, 0%, 10–13%) |
+| Border/divider | #2a2a2a – #333333 | hsl(0, 0%, 16–20%) |
+
+**BANNED** — any background with a hue/saturation component:
+- Dark blues (#0f1729, #1a1a2e, #161b2e, #0d1117)
+- Dark purples (#1e1028, #1a1030)
+- Dark teals (#0d1f1f, #0a1a1a)
+- Any background-color where HSL saturation > 0%
+
+The planner defines the exact palette. Sub-agents read it from the design brief.
+If any sub-agent returns work with saturated backgrounds, reject it immediately.
 
 ## You MUST Use Sub-Agents
 

@@ -100,22 +100,24 @@ export const TIME_CONTROL_SCRIPT = `
   function processTimers() {
     let rounds = 0;
     while (rounds++ < 500) {
-      let fired = false;
+      let earliest = null;
+      let earliestId = null;
       for (const [id, t] of _timers) {
-        if (t.fire <= _elapsed) {
-          fired = true;
-          if (t.type === 'timeout') {
-            _timers.delete(id);
-            try { t.cb(...t.args); } catch(e) { console.error(e); }
-          } else {
-            t.fire += t.interval;
-            try { t.cb(...t.args); } catch(e) { console.error(e); }
-          }
-          break;
+        if (t.fire <= _elapsed && (earliest === null || t.fire < earliest.fire)) {
+          earliest = t;
+          earliestId = id;
         }
       }
-      if (!fired) break;
+      if (!earliest) break;
+      if (earliest.type === 'timeout') {
+        _timers.delete(earliestId);
+        try { earliest.cb(...earliest.args); } catch(e) { console.error(e); }
+      } else {
+        earliest.fire += earliest.interval;
+        try { earliest.cb(...earliest.args); } catch(e) { console.error(e); }
+      }
     }
+    if (rounds >= 500) { try { console.warn('[claude-video] Timer processing hit 500-round cap'); } catch(e) {} }
   }
 
   function processRAF() {
@@ -342,10 +344,14 @@ export const TIME_CONTROL_SCRIPT = `
       const dur = meta ? parseFloat(meta.getAttribute('content')) : null;
       const ttsCues = [];
       document.querySelectorAll('[data-tts]').forEach(el => {
-        ttsCues.push({
+        const startVal = parseFloat(el.getAttribute('data-tts-start') || '0');
+        const cue = {
           text: el.getAttribute('data-tts'),
-          start: parseFloat(el.getAttribute('data-tts-start') || '0')
-        });
+          start: isNaN(startVal) ? 0 : startVal
+        };
+        const pause = parseFloat(el.getAttribute('data-tts-pause'));
+        if (!isNaN(pause) && pause > 0) cue.pause_after = pause;
+        ttsCues.push(cue);
       });
       const script = document.querySelector('script[type="text/claude-explains-tts"]');
       if (script) {

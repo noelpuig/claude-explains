@@ -13,6 +13,12 @@ node ../cli/bin/claude-explains.js --help-components
 
 Create ONE visual diagram file. SVG is the default, but HTML/CSS, JS Canvas, or a mix are valid if the content benefits.
 
+**Factual accuracy**: If your diagram depicts technical concepts (architecture,
+processes, data flows, components), verify all element names, relationships, and
+labels against the files in `references/`. The references folder is the single
+source of truth. Do not invent components or connections not present in the source
+material.
+
 **Before writing any code**, plan the layout:
 1. List all elements with names, sizes, and spatial relationships
 2. Assign coordinates — place major components first, then labels
@@ -50,13 +56,19 @@ it will catch and send back. Save yourself the round-trip: be thorough now.
 - Every animatable element needs a unique id (used by data-highlight AND
   data-viewport-focus for element-targeted zoom)
 - Max 15 labels per diagram
-- Max 150 lines per file
 - Group related elements in `<g>` tags with descriptive IDs
+- **Viewport zoom padding**: Labels and text near diagram edges WILL get clipped
+  when the scene author zooms into nearby elements. Keep all labels at least
+  120px from the SVG edges (top, bottom, left, right). If an element is meant
+  to be a zoom target (used with data-viewport-focus), keep its labels at least
+  200px from edges so neighboring text stays visible at 2x zoom.
+- **Read `plan/design-brief.json` for the color palette.** Use ONLY those colors.
 - No saturated colors anywhere: not in fills, not in backgrounds, not in
   outlines/strokes. Everything starts grey/muted (#888, #666, #ddd).
-  This includes container backgrounds — use rgba(255,255,255,0.05) or
-  similar near-transparent, not tinted pastels like #e8d5f5.
-  The scene author adds data-highlight to color elements when narrated.
+- Container/panel backgrounds: use the surface color from the design brief
+  (pure gray, 0% saturation — typically #1a1a1a to #222222). NEVER use
+  tinted pastels (#e8d5f5), dark blues (#1a1a2e), or any color with hue.
+- The scene author adds data-highlight to color elements when narrated.
 
 ## Report
 

@@ -210,18 +210,52 @@ export const REVIEW_SCRIPT = `
     });
   }
 
+  const PENDING_KEY = STORAGE_KEY + '-pending';
+
+  function savePendingAnnotation() {
+    if(!pendingBox || commentBox.style.display!=='block') return;
+    const box = pendingBox.getBoundingClientRect();
+    localStorage.setItem(PENDING_KEY, JSON.stringify({
+      x: Math.round(box.left), y: Math.round(box.top),
+      w: Math.round(box.width), h: Math.round(box.height),
+      text: commentTA.value, time: Math.round(currentTime*10)/10
+    }));
+  }
+
+  function restorePendingAnnotation() {
+    const raw = localStorage.getItem(PENDING_KEY);
+    if(!raw) return;
+    localStorage.removeItem(PENDING_KEY);
+    try {
+      const p = JSON.parse(raw);
+      drawMode = true;
+      document.getElementById('cv-ann').classList.add('on');
+      annLayer.classList.add('draw');
+      pendingBox = document.createElement('div');
+      pendingBox.style.cssText = 'position:fixed;border:2px dashed '+ANN_DRAW_COLOR+';background:'+ANN_DRAW_BG
+        +';z-index:99999;pointer-events:none;left:'+p.x+'px;top:'+p.y+'px;width:'+p.w+'px;height:'+p.h+'px';
+      document.body.appendChild(pendingBox);
+      const ann = {time:p.time, x:p.x, y:p.y, w:p.w, h:p.h, text:''};
+      commentBox.style.display = 'block';
+      commentBox.style.left = Math.min(p.x+p.w, window.innerWidth-280)+'px';
+      commentBox.style.top = Math.min(p.y+p.h, window.innerHeight-80)+'px';
+      commentTA.value = p.text||'';
+      commentTA.focus();
+      commentTA.onkeydown = (ke)=>{
+        if(ke.key==='Enter'&&!ke.shiftKey){ke.preventDefault();ann.text=commentTA.value.trim();annotations.push(ann);save();rebuildAnnEls();renderList();renderMarkers();clearPending();toast('Annotation #'+annotations.length+' saved');}
+        else if(ke.key==='Escape'){clearPending();}
+      };
+    } catch(e) {}
+  }
+
   function seekTo(t) {
     if(playing) togglePlay();
     currentTime=Math.max(0,Math.min(t,DURATION));
-    // Reset page to t=0 and fast-forward — simplest correct approach
-    // We reload the page state by resetting body innerHTML would be too destructive.
-    // Instead: for forward seeks from current, just tick the delta.
-    // For backward seeks, we need to reload. Use a URL param.
     const target = Math.round(currentTime*1000);
     const params = new URLSearchParams(location.search);
     const startFrom = parseInt(params.get('t'))||0;
     if(target < cv.getTime()) {
-      // need to go backward — reload with ?t= param
+      savePendingAnnotation();
       params.set('t', target);
       location.search = params.toString();
       return;
@@ -356,5 +390,6 @@ export const REVIEW_SCRIPT = `
   rebuildAnnEls();
   renderList();
   renderMarkers();
+  restorePendingAnnotation();
 })();
 `;

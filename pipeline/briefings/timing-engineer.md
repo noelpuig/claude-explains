@@ -2,16 +2,36 @@
 
 ## Rules
 
-Run these commands for the narrator sync workflow and timing constraints:
+Run these commands and follow ALL rules before writing anything:
 ```
-node ../cli/bin/claude-explains.js --help-format
+node ../cli/bin/claude-video.js --help-design
+node ../cli/bin/claude-video.js --help-format
 ```
+
+Read these files before starting:
+- `pipeline/briefings/quality-floor.md` — auto-reject criteria for timing, TTS cues, overlaps
+- `plan/design-brief.json` — canvas animation entries (see below)
 
 Pay special attention to: TTS SYNC WORKFLOW, CONTINUITY RULES, and NARRATOR SYNC sections.
 
 ## Your Task
 
 Handle TTS timing for ONE chapter. Read the chapter's narration JSON and scene files.
+
+## Programmatic Canvas Scenes
+
+Check `plan/design-brief.json` for `canvas_animations` entries. If any scene in
+your chapter is programmatic-canvas, its animation is driven by a
+`requestAnimationFrame` loop with elapsed-time phases — NOT by data-appear or
+data-highlight timestamps.
+
+For these scenes:
+- **DO** update data-tts-start and data-tts values (narration timing still applies)
+- **DO NOT** overwrite the scene's internal JavaScript timing constants
+- **DO NOT** add data-appear, data-highlight, or data-fade-out attributes
+- The canvas render loop handles all visual transitions internally based on elapsed time
+- Align TTS cue start times so narration matches the animation phases described
+  in the scene plan's `canvas_animation.phases` field
 
 ## Process
 
@@ -22,7 +42,7 @@ Handle TTS timing for ONE chapter. Read the chapter's narration JSON and scene f
      scene 1 cues start at 0, scene 2 cues start at scene2.start, etc.
    - If any cue text exceeds 120 words, split it into multiple cues
      at sentence boundaries BEFORE running TTS
-4. Run: `node ../cli/bin/claude-explains.js <temp_file> --analyze --tts --tts-engine supertonic --tts-model supertonic-3`
+4. Run: `node ../cli/bin/claude-video.js <temp_file> --analyze --tts --tts-engine supertonic --tts-model supertonic-3`
 5. Parse JSON output:
    - Extract adjusted_start (NOT requested_start) for each cue
    - Extract word_timestamps for each cue
@@ -30,6 +50,10 @@ Handle TTS timing for ONE chapter. Read the chapter's narration JSON and scene f
    - Check for long_cue_warnings — split any flagged cues and re-run
 6. Update each scene HTML with CHAPTER-GLOBAL timestamps:
    - data-tts-start = cue's adjusted_start
+   - data-tts-pause = narration JSON's pause_after value for this cue.
+     This tells the TTS system how long to wait after this cue before the
+     next can start. Default is 0.15s. For micro-cues (single keywords
+     that trigger multi-second animations), set to the animation duration.
    - data-appear = word_timestamp.time (already chapter-global from step 3)
    - data-highlight = word_timestamp.time for key terms
    - data-fade-out = appear_time + lifespan (5-10s, or before next topic)
@@ -63,7 +87,7 @@ If scene 3 starts at 60s and a word is spoken at scene-local 5.2s, the correct
 data-appear value is 60 + 5.2 = 65.2.
 
 If you are uncertain about offsets, use `--auto-offset` as a safety net:
-`node ../cli/bin/claude-explains.js --assemble timeline.json --auto-offset -o chapter.html`
+`node ../cli/bin/claude-video.js --assemble timeline.json --auto-offset -o chapter.html`
 
 ## TTS Cue Length Limit
 
@@ -74,9 +98,9 @@ generates one audio clip per cue and word timing is interpolated within it.
 ## Post-Update Verification
 
 After updating all scene files:
-1. Assemble: `node ../cli/bin/claude-explains.js --assemble timeline.json -o /tmp/chapter_test.html`
+1. Assemble: `node ../cli/bin/claude-video.js --assemble timeline.json -o /tmp/chapter_test.html`
 2. Check assembly output JSON for `validation.has_errors` — must be false
-3. Run: `node ../cli/bin/claude-explains.js /tmp/chapter_test.html --analyze --tts --tts-engine supertonic --tts-model supertonic-3`
+3. Run: `node ../cli/bin/claude-video.js /tmp/chapter_test.html --analyze --tts --tts-engine supertonic --tts-model supertonic-3`
 4. Verify ZERO overlap warnings and ZERO long_cue_warnings in the output
 5. If issues found: fix timestamps and re-verify
 

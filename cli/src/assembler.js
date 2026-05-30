@@ -49,7 +49,7 @@ function extractAccent(styles) {
   return m ? m[1].trim() : '#e94560';
 }
 
-const TIMESTAMP_ATTRS = /data-(appear|fade-out|highlight|viewport-at|tts-start)="([^"]+)"/g;
+const TIMESTAMP_ATTRS = /data-(appear|fade-out|highlight|viewport-at|tts-start)=(?:"([^"]+)"|'([^']+)')/g;
 
 function extractTimestamps(dom, ttsCues) {
   const timestamps = [];
@@ -57,7 +57,7 @@ function extractTimestamps(dom, ttsCues) {
     let m;
     const re = new RegExp(TIMESTAMP_ATTRS.source, 'g');
     while ((m = re.exec(str)) !== null) {
-      const v = parseFloat(m[2]);
+      const v = parseFloat(m[2] || m[3]);
       if (!isNaN(v)) timestamps.push(v);
     }
   };
@@ -76,10 +76,12 @@ function median(arr) {
 function offsetTimestamps(str, offset) {
   return str.replace(
     new RegExp(TIMESTAMP_ATTRS.source, 'g'),
-    (match, attr, val) => {
+    (match, attr, dqVal, sqVal) => {
+      const val = dqVal || sqVal;
+      const quote = dqVal ? '"' : "'";
       const n = parseFloat(val);
       if (isNaN(n)) return match;
-      return `data-${attr}="${(n + offset).toFixed(1)}"`;
+      return `data-${attr}=${quote}${(n + offset).toFixed(1)}${quote}`;
     }
   );
 }
@@ -126,9 +128,9 @@ function checkTimestampCoherence(parsed, duration) {
     if (timestamps.length === 0) continue;
 
     if (scene.start > 5) {
-      const med = median(timestamps);
-      if (med < scene.start * 0.5) {
-        issues.push({ severity: 'error', type: 'scene-local', message: `Scene ${i} (${scene.file}) appears to use scene-local timestamps (median=${med.toFixed(1)}s) but starts at ${scene.start}s. Add ${scene.start}s to all timestamps in this scene.` });
+      const minTs = Math.min(...timestamps);
+      if (minTs < scene.start - 5) {
+        issues.push({ severity: 'error', type: 'scene-local', message: `Scene ${i} (${scene.file}) appears to use scene-local timestamps (min=${minTs.toFixed(1)}s) but starts at ${scene.start}s. Add ${scene.start}s to all timestamps in this scene.` });
       }
     }
 
@@ -214,9 +216,9 @@ export function assembleScenes(timelinePath, outputPath, options = {}) {
       if (parsed[i].start === 0) continue;
       const ts = extractTimestamps(parsed[i].dom, parsed[i].ttsCues);
       if (ts.length === 0) continue;
-      const med = median(ts);
-      if (med >= parsed[i].start * 0.5) {
-        process.stderr.write(`  [WARNING] Scene ${i} (${parsed[i].file}): timestamps already appear chapter-global (median=${med.toFixed(1)}s, start=${parsed[i].start}s). Skipping auto-offset.\n`);
+      const minTs = Math.min(...ts);
+      if (minTs >= parsed[i].start - 5) {
+        process.stderr.write(`  [INFO] Scene ${i} (${parsed[i].file}): timestamps already chapter-global (min=${minTs.toFixed(1)}s, start=${parsed[i].start}s). Skipping auto-offset.\n`);
         continue;
       }
       process.stderr.write(`  Auto-offsetting scene ${i} (${parsed[i].file}) by +${parsed[i].start}s\n`);
@@ -248,7 +250,10 @@ export function assembleScenes(timelinePath, outputPath, options = {}) {
   const allTtsCues = parsed.flatMap(s => s.ttsCues).join('\n');
 
   const sceneDivs = parsed.map((s, i) => {
-    let dom = s.dom.replace(/class="scene\s+active"/, 'class="scene"');
+    let dom = s.dom.replace(/class="([^"]*)\bactive\b([^"]*)"/, (m, before, after) => {
+      const cleaned = (before + after).replace(/\s{2,}/g, ' ').trim();
+      return `class="${cleaned}"`;
+    });
     if (i === 0) dom = dom.replace(/class="scene"/, 'class="scene active"');
     return `<!-- Scene ${i}: ${s.file} (${s.start}s) -->\n${dom}`;
   }).join('\n\n');
@@ -258,14 +263,14 @@ export function assembleScenes(timelinePath, outputPath, options = {}) {
 const times = [${timesArray.join(', ')}];
 times.forEach((t, i) => {
   setTimeout(() => {
-    scenes.forEach(s => s.classList.remove('active'));
-    scenes[i].classList.add('active');
+    scenes.forEach(s => { if (s) s.classList.remove('active') });
+    if (scenes[i]) scenes[i].classList.add('active');
   }, t);
 });`;
 
   const perSceneScripts = parsed
-    .filter(s => s.scripts.length > 0)
-    .map((s, i) => `// Scene ${i}: ${s.file}\n(function() {\n${s.scripts.join('\n')}\n})();`)
+    .map((s, i) => s.scripts.length > 0 ? `// Scene ${i}: ${s.file}\n(function() {\n${s.scripts.join('\n')}\n})();` : '')
+    .filter(Boolean)
     .join('\n\n');
 
   const mergedStyles = [...uniqueStyles, BOILERPLATE_CSS, `body { background:${theme.bg}; color:${theme.color} }`, `.accent { color:${accent} }`].join('\n');

@@ -33,18 +33,30 @@ export function createEncoder(options) {
   });
 
   let stderr = '';
-  proc.stderr.on('data', (d) => { stderr += d.toString(); });
+  proc.stderr.on('data', (d) => {
+    stderr += d.toString();
+    if (stderr.length > 2000) stderr = stderr.slice(-2000);
+  });
+
+  let spawnError = null;
+  proc.on('error', (err) => { spawnError = err; });
 
   return {
     write(pngBuf) {
       return new Promise((resolve, reject) => {
+        proc.stdin.once('error', reject);
         const ok = proc.stdin.write(pngBuf);
         if (ok) resolve();
         else proc.stdin.once('drain', resolve);
       });
     },
     async finish() {
+      if (spawnError) return Promise.reject(spawnError);
       return new Promise((resolve, reject) => {
+        if (proc.exitCode !== null) {
+          if (proc.exitCode === 0) return resolve();
+          return reject(new Error(`FFmpeg exited with code ${proc.exitCode}:\n${stderr.slice(-500)}`));
+        }
         proc.stdin.end();
         proc.on('close', (code) => {
           if (code === 0) resolve();

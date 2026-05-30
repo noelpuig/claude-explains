@@ -8,7 +8,7 @@ import { generateTemplate, listTemplates } from './templates.js';
 
 function printHelp() {
   const help = `
-claude-explains - Render HTML/CSS/JS animations to video with TTS narration
+claude-video - Render HTML/CSS/JS animations to video with TTS narration
 Designed for autonomous LLM agent video generation pipelines.
 
 ** IMPORTANT: If you are an LLM agent generating a video:
@@ -27,7 +27,7 @@ Designed for autonomous LLM agent video generation pipelines.
    Read --help-design 'ANIMATION QUALITY' — this is the most important section. **
 
 USAGE
-  claude-explains <input> [options]
+  claude-video <input> [options]
   Input accepts HTML or SVG files. SVG files are auto-wrapped for preview.
 
 MODES
@@ -103,7 +103,12 @@ ENCODING OPTIONS
 
 TTS MARKUP (place anywhere in HTML body)
   <div data-tts="Narration text" data-tts-start="2.5"></div>
-  <meta name="claude-explains:duration" content="10">
+  <div data-tts="keyword" data-tts-start="5.0" data-tts-pause="3.0"></div>
+  <meta name="claude-video:duration" content="10">
+
+  data-tts-pause="N"    Seconds of silence AFTER this cue before the next can
+                        start. Default: 0.15s. Use for animation-paced narration
+                        where each keyword triggers a multi-second animation.
 
 NARRATOR SYNC EFFECTS (use with data-appear and data-highlight)
   data-highlight-effect   Highlight animation: color (default), underline,
@@ -114,21 +119,21 @@ NARRATOR SYNC EFFECTS (use with data-appear and data-highlight)
 LLM AGENT WORKFLOW — follow these steps in order:
   1. Read --help-design for rules, --help-components for available tags
   2. Write HTML using built-in components + TTS cues (estimate timing)
-  3. claude-explains input.html --analyze --tts
+  3. claude-video input.html --analyze --tts
      → Parse the JSON output. Read tts.cues[].audio_duration for each clip.
      → Read tts.suggested_minimum_duration for required video length.
      → Read tts.cues[].adjusted_start for overlap-corrected start times.
   4. Update HTML: set duration meta, adjust data-tts-start values to match
      adjusted_start from step 3, add data-appear/data-highlight using
      word_timestamps, time animations to TTS boundaries
-  5. claude-explains input.html --validate → fix ALL errors before proceeding
-  6. claude-explains input.html --storyboard 9 -o storyboard
+  5. claude-video input.html --validate → fix ALL errors before proceeding
+  6. claude-video input.html --storyboard 9 -o storyboard
      → INSPECT the storyboard image. Check: text readable? theme correct?
        content visible? narrator sync used? layout varied? scenes switch?
      → If ANY issue found: fix HTML, re-storyboard, re-check.
      → See --help-format "MANDATORY STORYBOARD SELF-CHECK" for full list.
   7. ONLY after storyboard passes: render final video
-     claude-explains input.html -o final.mp4 --tts -d <suggested_duration>
+     claude-video input.html -o final.mp4 --tts -d <suggested_duration>
 
   ** RENDER WARNING — SEQUENTIAL ONLY **
   Each render spawns Chromium + TTS engine + FFmpeg. A single render uses
@@ -876,7 +881,7 @@ HTML FORMAT & WORKFLOW RULES
   <!DOCTYPE html>
   <html><head>
   <meta charset="utf-8">
-  <meta name="claude-explains:duration" content="30">
+  <meta name="claude-video:duration" content="30">
   <style>
     * { margin:0; padding:0; box-sizing:border-box }
     body {
@@ -922,6 +927,28 @@ HTML FORMAT & WORKFLOW RULES
   5. Set scene switch times to match TTS cue boundaries
   6. Add data-appear, data-highlight, AND data-fade-out using word_timestamps
   7. Run --validate — fix ALL errors before proceeding
+
+  ANIMATION-PACED NARRATION (micro-cues):
+  When narration lists keywords that each trigger multi-second animations
+  (zoom, build, highlight cycle), split each keyword into its own TTS cue.
+  Use data-tts-pause to insert silence while the animation plays.
+
+  BAD — one cue, narrator finishes before animations complete:
+    <div data-tts="The components are: auth, authz, and sessions."
+         data-tts-start="10"></div>
+
+  GOOD — micro-cues, narrator waits for each animation:
+    <div data-tts="The components are:" data-tts-start="10"></div>
+    <div data-tts="authentication," data-tts-start="12"
+         data-tts-pause="3.0"></div>
+    <div data-tts="authorization," data-tts-start="16"
+         data-tts-pause="3.0"></div>
+    <div data-tts="and sessions." data-tts-start="20"
+         data-tts-pause="3.0"></div>
+
+  data-tts-pause="N" sets the minimum silence gap (in seconds) after
+  this cue before the next cue can start. Default: 0.15s. The --analyze
+  --tts output includes pause_after for each cue.
   8. Run --storyboard N where:
        Short (<=60s):    N = 9
        Medium (60-300s): N = ceil(duration / 10)
@@ -944,7 +971,7 @@ HTML FORMAT & WORKFLOW RULES
   4. TIMING — run --analyze --tts per chapter. Map word_timestamps to
      data-appear/data-highlight/data-fade-out in each scene file.
   5. ASSEMBLY — combine scenes into playable HTML:
-     claude-explains --assemble timeline.json -o chapter.html
+     claude-video --assemble timeline.json -o chapter.html
      Timeline JSON format:
      { "duration": 120, "scenes": [
          { "file": "ch01_s01.html", "start": 0 },
@@ -980,7 +1007,7 @@ HTML FORMAT & WORKFLOW RULES
 
   The assembler validates timestamps and will warn if scene-local
   patterns are detected. Use --auto-offset as a safety net:
-    claude-explains --assemble timeline.json --auto-offset -o chapter.html
+    claude-video --assemble timeline.json --auto-offset -o chapter.html
   This auto-adds scene start offsets to all timestamps. It skips scenes
   whose timestamps already appear chapter-global (double-offset protection).
 
@@ -1078,40 +1105,49 @@ function parseArgs(argv) {
     pdf: null, htmlBundle: false, review: false, assemble: null, autoOffset: false,
   };
 
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i], n = argv[i + 1];
+  let i = 0;
+  function consumeArg(flag) {
+    if (i + 1 >= argv.length) {
+      process.stderr.write(`Error: ${flag} requires a value\n`);
+      process.exit(1);
+    }
+    return argv[++i];
+  }
+
+  for (; i < argv.length; i++) {
+    const a = argv[i];
     switch (a) {
       case '--help': printHelp(); process.exit(0);
       case '--help-components': printComponentHelp(); process.exit(0);
       case '--help-design': printDesignHelp(); process.exit(0);
       case '--help-format': printFormatHelp(); process.exit(0);
-      case '-o': case '--output': opts.output = n; i++; break;
-      case '--width': opts.width = parseInt(n, 10); i++; break;
-      case '--height': opts.height = parseInt(n, 10); i++; break;
-      case '--fps': opts.fps = parseInt(n, 10); i++; break;
-      case '-d': case '--duration': opts.duration = parseFloat(n); i++; break;
+      case '-o': case '--output': opts.output = consumeArg(a); break;
+      case '--width': opts.width = parseInt(consumeArg(a), 10); break;
+      case '--height': opts.height = parseInt(consumeArg(a), 10); break;
+      case '--fps': opts.fps = parseInt(consumeArg(a), 10); break;
+      case '-d': case '--duration': opts.duration = parseFloat(consumeArg(a)); break;
       case '--tts': opts.tts = true; break;
-      case '--tts-voice': opts.ttsVoice = n; i++; break;
-      case '--tts-rate': opts.ttsRate = parseInt(n, 10); i++; break;
-      case '--tts-engine': opts.ttsEngine = n; i++; break;
-      case '--tts-model': opts.ttsModel = n; i++; break;
-      case '--tts-quality': opts.ttsQuality = n; i++; break;
-      case '--tts-speed': opts.ttsSpeed = parseFloat(n); i++; break;
-      case '--tts-audio': i++; break;
-      case '--tts-first': opts.ttsFirst = n; i++; break;
-      case '--codec': opts.codec = n; i++; break;
-      case '--quality': opts.quality = n; i++; break;
+      case '--tts-voice': opts.ttsVoice = consumeArg(a); break;
+      case '--tts-rate': opts.ttsRate = parseInt(consumeArg(a), 10); break;
+      case '--tts-engine': opts.ttsEngine = consumeArg(a); break;
+      case '--tts-model': opts.ttsModel = consumeArg(a); break;
+      case '--tts-quality': opts.ttsQuality = consumeArg(a); break;
+      case '--tts-speed': opts.ttsSpeed = parseFloat(consumeArg(a)); break;
+      case '--tts-audio': consumeArg(a); break;
+      case '--tts-first': opts.ttsFirst = consumeArg(a); break;
+      case '--codec': opts.codec = consumeArg(a); break;
+      case '--quality': opts.quality = consumeArg(a); break;
       case '--analyze': opts.analyze = true; break;
-      case '--preview': opts.preview = parseFloat(n); i++; break;
+      case '--preview': opts.preview = parseFloat(consumeArg(a)); break;
       case '--no-components': opts.components = false; break;
-      case '--storyboard': opts.storyboard = parseInt(n, 10) || 9; i++; break;
+      case '--storyboard': opts.storyboard = parseInt(consumeArg(a), 10) || 9; break;
       case '--validate': opts.validate = true; break;
-      case '--template': opts.template = n; i++; break;
-      case '--template-scenes': opts.templateScenes = parseInt(n, 10); i++; break;
-      case '--pdf': opts.pdf = n; i++; break;
+      case '--template': opts.template = consumeArg(a); break;
+      case '--template-scenes': opts.templateScenes = parseInt(consumeArg(a), 10); break;
+      case '--pdf': opts.pdf = consumeArg(a); break;
       case '--html-bundle': opts.htmlBundle = true; break;
       case '--review': opts.review = true; break;
-      case '--assemble': opts.assemble = n; i++; break;
+      case '--assemble': opts.assemble = consumeArg(a); break;
       case '--auto-offset': opts.autoOffset = true; break;
       default:
         if (!a.startsWith('-') && !opts.input) opts.input = a;
@@ -1129,7 +1165,7 @@ function wrapSvgInput(inputPath) {
 
   process.stderr.write('SVG input detected, wrapping in preview HTML...\n');
   const wrapped = `<!DOCTYPE html><html><head>
-<meta charset="utf-8"><meta name="claude-explains:duration" content="1">
+<meta charset="utf-8"><meta name="claude-video:duration" content="1">
 <style>*{margin:0;padding:0;box-sizing:border-box}
 body{width:1920px;height:1080px;overflow:hidden;background:#1a1a2e;color:#e0e0e0}
 svg{width:100%;height:100%}</style>
@@ -1258,7 +1294,7 @@ async function runRender(inputPath, opts) {
   const outputPath = resolve(opts.output);
   const startTime = Date.now();
 
-  process.stderr.write(`claude-explains v1.0.0\n`);
+  process.stderr.write(`claude-video v1.0.0\n`);
   process.stderr.write(`Input:  ${inputPath}\n`);
   process.stderr.write(`Output: ${outputPath}\n`);
   process.stderr.write(`Size:   ${opts.width}x${opts.height} @ ${opts.fps}fps\n`);
@@ -1418,7 +1454,6 @@ async function runTTSFirst(opts) {
 
 async function runPDF(inputPath, opts) {
   const outputPath = resolve(opts.pdf);
-  const pdfTimesStr = opts.duration ? null : null;
   const config = await peekConfig(inputPath, opts.width, opts.height);
   const duration = opts.duration || config.duration || 10;
 

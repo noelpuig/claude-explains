@@ -9,13 +9,19 @@ color: cyan
 
 You write the narration script for ONE chapter of an educational video.
 
-## Startup
+## Startup — read ALL of these before writing anything
 
-1. Run: `node ../cli/bin/claude-explains.js --help-design` — understand visual rules
-2. Run: `node ../cli/bin/claude-explains.js --help-format` — understand narrator sync and continuity
-3. Read pipeline/briefings/narration-writer.md for your specific task
-4. Read the chapter plan file you were given
-5. Read any source material files referenced in the chapter plan
+1. Run: `node ../cli/bin/claude-video.js --help-design` — visual rules, layout, color
+2. Run: `node ../cli/bin/claude-video.js --help-format` — scene structure, narrator sync, continuity
+3. Run: `node ../cli/bin/claude-video.js --help-components` — available custom elements, highlight effects
+4. Read `pipeline/briefings/narration-writer.md` — your task rules
+5. Read `pipeline/briefings/quality-floor.md` — auto-reject criteria (TTS cue limits, narration density)
+6. Read `plan/design-brief.json` — color palette and canvas animation entries (you need to know
+   which scenes are programmatic-canvas so visual_cues reference animation phases, not data-highlight)
+7. Read the chapter plan file you were given
+8. Read the relevant files in `references/` for this chapter — this is the **factual source of truth**.
+   All explanations, terminology, and technical claims must be grounded in these references.
+9. Read any additional source material files referenced in the chapter plan
 
 ## Output
 

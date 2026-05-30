@@ -10,7 +10,6 @@ These are the quantitative minimums. For full rules, run `--help-design` and `--
 | data-highlight events | >= 3 (narrator words must trigger visual highlights) |
 | data-fade-out count | must equal data-appear count |
 | Viewport transforms (canvas scenes) | >= 1 |
-| Max lines | 200 |
 | Max simultaneous overlays | 3 |
 | Max words per overlay | 8 |
 | CLI validation errors | 0 |
@@ -23,7 +22,6 @@ These are the quantitative minimums. For full rules, run `--help-design` and `--
 | viewBox | "0 0 1920 1080" |
 | Unique IDs on animatable elements | all |
 | Max labels | 15 |
-| Max lines | 150 |
 | Label overlaps | 0 |
 | Default element colors | grey/muted (#888, #ddd, #aaa) — NOT saturated |
 
@@ -44,13 +42,31 @@ These are the quantitative minimums. For full rules, run `--help-design` and `--
 | Overlap warnings | 0 (after --analyze --tts on assembled chapter) |
 | Timestamp model | Chapter-global absolute (NOT scene-local) |
 | Narration density | Must NOT fill 90%+ of scene duration continuously |
+| Animation-paced content | Items with per-item animation >2s must use micro-cues (one keyword per cue) with data-tts-pause matching animation duration |
+
+## Dark Mode Color Rules
+
+All videos use dark backgrounds with ZERO saturation (pure grays, no hue).
+
+| Role | Correct range | HSL |
+|------|--------------|-----|
+| Main background | #0d0d0d – #141414 | hsl(0, 0%, 5–8%) |
+| Surface/panel | #1a1a1a – #222222 | hsl(0, 0%, 10–13%) |
+| Border/divider | #2a2a2a – #333333 | hsl(0, 0%, 16–20%) |
+| Text primary | #e0e0e0 – #ebebeb | hsl(0, 0%, 88–92%) |
+| Text secondary | #888888 – #999999 | hsl(0, 0%, 53–60%) |
+| Element default | #888888 | Grey until highlighted |
+
+**BANNED backgrounds**: any hex/rgb/hsl where saturation > 0%. This includes dark blues (#1a1a2e), dark purples (#1e1028), dark teals (#0d1f1f), and anything with a visible hue component. The planner defines exact palette values in `plan/design-brief.json`.
 
 ## Auto-Reject (any of these = immediate failure)
 
 - "Content here", "TODO", "placeholder", "Lorem ipsum"
 - data-appear without matching data-fade-out
-- Saturated background color (purple, blue, bright green, etc.)
+- Background color with HSL saturation > 0% (dark blues, purples, teals — any hue)
 - Diagram elements with permanent saturated fill colors (red, blue, green)
+- Blank gap > 2 seconds between content phases (old elements fully faded before new ones appear)
+- Labels clipped by viewport zoom (truncated text visible in preview PNG)
 - All data-appear events at the same timestamp (static fade-in, not animation)
 - Zero data-highlight events (no narrator sync)
 - Empty data-tts attributes

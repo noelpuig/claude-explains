@@ -1,5 +1,5 @@
 import { execFileSync, execSync, spawnSync } from 'child_process';
-import { mkdtempSync, existsSync, unlinkSync, renameSync, readdirSync, writeFileSync } from 'fs';
+import { mkdtempSync, existsSync, unlinkSync, renameSync, readdirSync, rmdirSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
@@ -106,19 +106,25 @@ function generateClip(engine, text, outputPath, voice, rate) {
       break;
     case 'gtts-python': {
       const mp3Path = outputPath.replace(/\.wav$/, '.mp3');
+      const textFile = join(dirname(outputPath), 'text.txt');
+      writeFileSync(textFile, text);
       execSync(
-        `python3 -c "from gtts import gTTS; gTTS('${safeText}', lang='${voice.slice(0, 2)}').save('${mp3Path}')"`,
+        `python3 -c "from gtts import gTTS; gTTS(open('${textFile}').read(), lang='${voice.slice(0, 2)}').save('${mp3Path}')"`,
         { timeout: EXEC_TIMEOUT, stdio: 'pipe' }
       );
       execSync(`ffmpeg -y -i "${mp3Path}" -ar 44100 -ac 1 "${outputPath}"`, { stdio: 'pipe', timeout: EXEC_TIMEOUT });
       try { unlinkSync(mp3Path); } catch {}
+      try { unlinkSync(textFile); } catch {}
       break;
     }
     case 'gtts-cli': {
       const mp3Path = outputPath.replace(/\.wav$/, '.mp3');
-      execSync(`gtts-cli "${safeText}" -l ${voice.slice(0, 2)} -o "${mp3Path}"`, { timeout: EXEC_TIMEOUT, stdio: 'pipe' });
+      const textFile = join(dirname(outputPath), 'text.txt');
+      writeFileSync(textFile, text);
+      execFileSync('gtts-cli', ['-f', textFile, '-l', voice.slice(0, 2), '-o', mp3Path], { timeout: EXEC_TIMEOUT, stdio: 'pipe' });
       execSync(`ffmpeg -y -i "${mp3Path}" -ar 44100 -ac 1 "${outputPath}"`, { stdio: 'pipe', timeout: EXEC_TIMEOUT });
       try { unlinkSync(mp3Path); } catch {}
+      try { unlinkSync(textFile); } catch {}
       break;
     }
     default:
@@ -150,6 +156,8 @@ export function calculateTTSTimeline(cues, clipDurations) {
       return { word, time: Math.round(wordStart * 1000) / 1000 };
     });
 
+    const pauseAfter = cues[i].pause_after ?? 0.15;
+
     timeline.push({
       index: i,
       text: cues[i].text,
@@ -163,12 +171,13 @@ export function calculateTTSTimeline(cues, clipDurations) {
       word_count: wordCount,
       words_per_second: Math.round(wordsPerSecond * 10) / 10,
       word_timestamps: wordTimestamps,
+      pause_after: pauseAfter,
       long_cue_warning: wordCount > 120
         ? `Cue ${i} has ${wordCount} words (max recommended: 120). Split into shorter cues for better narrator sync accuracy.`
         : undefined,
     });
 
-    currentEnd = adjustedEnd + 0.15;
+    currentEnd = adjustedEnd + pauseAfter;
   }
 
   const totalSpeech = clipDurations.reduce((a, b) => a + b, 0);
@@ -259,7 +268,13 @@ export async function generateTTSWithTimeline(cues, duration, options = {}) {
     }
   }
 
-  if (clips.length === 0) return { audioPath: null, timeline };
+  if (clips.length === 0) {
+    for (const f of readdirSync(tempDir)) {
+      try { unlinkSync(join(tempDir, f)); } catch {}
+    }
+    try { rmdirSync(tempDir); } catch {}
+    return { audioPath: null, timeline };
+  }
 
   const outputPath = join(tempDir, 'tts_combined.wav');
   const adjustedCues = timeline.cues.filter(c => clipDurations[c.index] > 0);
@@ -350,6 +365,7 @@ export async function analyzeTTSOnly(cues, options = {}) {
   for (const f of readdirSync(tempDir)) {
     try { unlinkSync(join(tempDir, f)); } catch {}
   }
+  try { rmdirSync(tempDir); } catch {}
 
   return {
     timeline: calculateTTSTimeline(cues, clipDurations),
@@ -387,9 +403,9 @@ export async function generateFromScript(scriptPath, options = {}) {
     for (let i = 0; i < script.length; i++) {
       const dur = batch[i] ? batch[i].duration : 0;
       clipDurations.push(dur);
-      cues.push({ text: script[i].text, start: currentTime });
+      cues.push({ text: script[i].text, start: currentTime, pause_after: script[i].pause_after });
       process.stderr.write(`    Start: ${currentTime.toFixed(2)}s, Duration: ${dur.toFixed(2)}s\n`);
-      currentTime += dur + (script[i].pause_after || 0.5);
+      currentTime += dur + (script[i].pause_after ?? 0.5);
     }
   } else {
     for (let i = 0; i < script.length; i++) {
@@ -400,9 +416,9 @@ export async function generateFromScript(scriptPath, options = {}) {
 
       const dur = existsSync(clipPath) ? getAudioDuration(clipPath) : 0;
       clipDurations.push(dur);
-      cues.push({ text: item.text, start: currentTime });
+      cues.push({ text: item.text, start: currentTime, pause_after: item.pause_after });
       process.stderr.write(`    Start: ${currentTime.toFixed(2)}s, Duration: ${dur.toFixed(2)}s\n`);
-      currentTime += dur + (item.pause_after || 0.5);
+      currentTime += dur + (item.pause_after ?? 0.5);
     }
   }
 
@@ -451,5 +467,6 @@ export function cleanupTTS(audioPath) {
     for (const f of readdirSync(dir)) {
       try { unlinkSync(join(dir, f)); } catch {}
     }
+    try { rmdirSync(dir); } catch {}
   } catch {}
 }

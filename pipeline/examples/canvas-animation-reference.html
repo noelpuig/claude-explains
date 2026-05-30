@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="claude-video:duration" content="16">
+<style>
+* { margin:0; padding:0; box-sizing:border-box }
+body { width:1966px; height:962px; overflow:hidden; background:#0d1117; font-family:system-ui }
+.accent { color:#43add0 }
+.scene { position:absolute; inset:0; opacity:0; pointer-events:none }
+.scene.active { opacity:1; pointer-events:auto }
+canvas { position:absolute; top:0; left:0 }
+</style>
+</head><body>
+<anim-text style="position:absolute;opacity:0;pointer-events:none">.</anim-text>
+<div data-tts="Before the final render, review the animation in your browser." data-tts-start="0.5"></div>
+<div data-tts="Draw boxes on any problems and type your feedback." data-tts-start="5.5"></div>
+<div data-tts="Claude fixes the exact issues you flagged." data-tts-start="11.5"></div>
+<div class="scene active" style="position:absolute;inset:0">
+<canvas id="c" width="1966" height="962"></canvas>
+</div>
+<script>
+(function(){
+const W=1966, H=962;
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+const ACCENT='#43add0';
+const BG='#0d1117';
+
+const slideX=200, slideY=80, slideW=1566, slideH=680;
+const annotText="Improve this transition";
+const selStart={x:680, y:220};
+const selEnd={x:1420, y:540};
+const textBoxX=selEnd.x-380, textBoxY=selEnd.y+15;
+const btnX=textBoxX+300, btnY=textBoxY+70, btnW=130, btnH=46;
+
+function lerp(a,b,t){ return a+(b-a)*Math.max(0,Math.min(1,t)); }
+function easeInOut(t){ return t<0.5?2*t*t:(1-Math.pow(-2*t+2,2)/2); }
+
+function drawMockSlide(alpha){
+  ctx.globalAlpha=alpha;
+  ctx.fillStyle='#161b22';
+  ctx.beginPath(); ctx.roundRect(slideX,slideY,slideW,slideH,16); ctx.fill();
+  ctx.strokeStyle='#333'; ctx.lineWidth=2; ctx.stroke();
+  ctx.fillStyle='#999'; ctx.font='bold 32px system-ui';
+  ctx.fillText('Scene Preview',slideX+50,slideY+55);
+  ctx.fillStyle='#2a2a3a';
+  for(let i=0;i<4;i++){
+    ctx.beginPath(); ctx.roundRect(slideX+50,slideY+90+i*70,480,44,8); ctx.fill();
+  }
+  ctx.fillStyle='#252535';
+  ctx.beginPath(); ctx.roundRect(slideX+580,slideY+90,900,360,12); ctx.fill();
+  ctx.strokeStyle='#555'; ctx.lineWidth=1.5;
+  ctx.strokeRect(slideX+720,slideY+170,280,200);
+  ctx.beginPath(); ctx.moveTo(slideX+860,slideY+170); ctx.lineTo(slideX+860,slideY+370); ctx.stroke();
+  ctx.fillStyle='#bbb'; ctx.font='22px system-ui';
+  ctx.fillText('API',slideX+790,slideY+280);
+  ctx.fillText('Server',slideX+900,slideY+280);
+  ctx.globalAlpha=1;
+}
+
+function drawCursor(x,y,type,alpha){
+  ctx.globalAlpha=alpha; ctx.save(); ctx.translate(x,y);
+  if(type==='pointer'){
+    ctx.fillStyle='#fff'; ctx.strokeStyle='#222'; ctx.lineWidth=2.5;
+    ctx.beginPath();
+    ctx.moveTo(0,0); ctx.lineTo(0,28); ctx.lineTo(8,22);
+    ctx.lineTo(13,32); ctx.lineTo(18,30); ctx.lineTo(13,20);
+    ctx.lineTo(20,20); ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if(type==='text'){
+    ctx.strokeStyle='#fff'; ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.moveTo(-8,0); ctx.lineTo(8,0);
+    ctx.moveTo(0,0); ctx.lineTo(0,28);
+    ctx.moveTo(-8,28); ctx.lineTo(8,28);
+    ctx.stroke();
+  } else if(type==='crosshair'){
+    ctx.strokeStyle='#ff4466'; ctx.lineWidth=2.5;
+    ctx.beginPath();
+    ctx.moveTo(-16,0); ctx.lineTo(16,0);
+    ctx.moveTo(0,-16); ctx.lineTo(0,16);
+    ctx.stroke();
+    ctx.strokeStyle='rgba(255,68,102,0.3)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.stroke();
+  }
+  ctx.restore(); ctx.globalAlpha=1;
+}
+
+function drawSelectionBox(x1,y1,x2,y2,alpha){
+  ctx.globalAlpha=alpha;
+  ctx.strokeStyle='#ff4466'; ctx.lineWidth=2.5;
+  ctx.setLineDash([8,4]); ctx.strokeRect(x1,y1,x2-x1,y2-y1); ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,68,102,0.06)'; ctx.fillRect(x1,y1,x2-x1,y2-y1);
+  ctx.globalAlpha=1;
+}
+
+function drawTextBox(x,y,text,cursorOn,alpha,confirmed){
+  ctx.globalAlpha=alpha;
+  const pad=18, fs=30;
+  ctx.font=fs+'px system-ui';
+  const bw=420, bh=fs+pad*2;
+  ctx.fillStyle=confirmed?'#151a20':'#1a1f28';
+  ctx.strokeStyle=confirmed?'#16c79a':ACCENT;
+  ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(x,y,bw,bh,10); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#e0e0e0'; ctx.fillText(text,x+pad,y+pad+fs-6);
+  if(cursorOn && !confirmed){
+    const cx=x+pad+ctx.measureText(text).width+3;
+    ctx.fillStyle=ACCENT; ctx.fillRect(cx,y+pad-2,3,fs+2);
+  }
+  ctx.globalAlpha=1;
+}
+
+function drawCopyBtn(x,y,w,h,state,alpha){
+  ctx.globalAlpha=alpha;
+  const colors={normal:ACCENT, hover:'#5cc4de', pressed:'#2a8ea8'};
+  ctx.fillStyle=colors[state]||ACCENT;
+  ctx.beginPath(); ctx.roundRect(x,y,w,h,8); ctx.fill();
+  if(state==='pressed'){ ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke(); }
+  ctx.fillStyle='#fff'; ctx.font='bold 22px system-ui'; ctx.textAlign='center';
+  ctx.fillText('Copy',x+w/2,y+h/2+8); ctx.textAlign='start';
+  ctx.globalAlpha=1;
+}
+
+function drawCheckmark(x,y,scale,alpha){
+  ctx.globalAlpha=alpha; ctx.save(); ctx.translate(x,y); ctx.scale(scale,scale);
+  ctx.strokeStyle='#22c55e'; ctx.lineWidth=5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,14); ctx.lineTo(10,24); ctx.lineTo(28,2); ctx.stroke();
+  ctx.restore(); ctx.globalAlpha=1;
+}
+
+let startTime=null;
+const sceneEl=canvas.closest('.scene');
+function render(timestamp){
+  if(!startTime){
+    if(sceneEl && !sceneEl.classList.contains('active')){
+      requestAnimationFrame(render);
+      return;
+    }
+    startTime=timestamp;
+  }
+  const t=(timestamp-startTime)/1000;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle=BG; ctx.fillRect(0,0,W,H);
+
+  const slideAlpha=Math.min(1,t/1.2);
+  drawMockSlide(slideAlpha);
+
+  if(t<14){
+    ctx.globalAlpha=Math.min(1,Math.max(0,(t-0.3)/0.8));
+    ctx.fillStyle='#666'; ctx.font='bold 42px system-ui'; ctx.textAlign='center';
+    ctx.fillText('Interactive Review',W/2,slideY+slideH+65);
+    ctx.textAlign='start'; ctx.globalAlpha=1;
+  }
+
+  const cStartX=W/2, cStartY=H/2-50;
+  if(t>=1.8 && t<3.5){
+    const p=easeInOut((t-1.8)/1.5);
+    drawCursor(lerp(cStartX,selStart.x,p),lerp(cStartY,selStart.y,p),'crosshair',Math.min(1,(t-1.8)/0.3));
+  }
+  if(t>=3.5 && t<6){
+    const p=easeInOut((t-3.5)/2.2);
+    const cx=lerp(selStart.x,selEnd.x,p), cy=lerp(selStart.y,selEnd.y,p);
+    drawSelectionBox(selStart.x,selStart.y,cx,cy,1);
+    drawCursor(cx,cy,'crosshair',1);
+  }
+  if(t>=6) drawSelectionBox(selStart.x,selStart.y,selEnd.x,selEnd.y,t>=14?Math.max(0.15,1-(t-14)/1.5):1);
+
+  if(t>=6 && t<7.2){
+    const p=easeInOut((t-6)/0.8);
+    drawTextBox(textBoxX,textBoxY,'',false,p,false);
+    drawCursor(lerp(selEnd.x,textBoxX+18,p),lerp(selEnd.y,textBoxY+28,p),'crosshair',1-p);
+  }
+  if(t>=7.2 && t<7.5) drawCursor(textBoxX+18,textBoxY+28,'text',1);
+
+  if(t>=7.2 && t<14){
+    const chars=Math.min(annotText.length,Math.floor((t-7.5)*9));
+    const typed=chars>0?annotText.slice(0,chars):'';
+    const blink=Math.floor(t*2.5)%2===0;
+    const confirmed=t>=13.5;
+    drawTextBox(textBoxX,textBoxY,typed,blink&&t>=7.5,1,confirmed);
+  }
+  if(t>=14) drawTextBox(textBoxX,textBoxY,annotText,false,1,true);
+
+  if(t>=11.5 && t<14){
+    const btnAlpha=Math.min(1,(t-11.5)/0.4);
+    const state=t>=13.2?'pressed':t>=12.5?'hover':'normal';
+    drawCopyBtn(btnX,btnY,btnW,btnH,state,btnAlpha);
+    if(t>=12.2 && t<13.5){
+      const p=easeInOut(Math.min(1,(t-12.2)/0.6));
+      drawCursor(lerp(textBoxX+200,btnX+btnW/2,p),lerp(textBoxY+28,btnY+btnH/2,p),'pointer',1);
+    }
+    if(t>=13.5) drawCursor(btnX+btnW/2,btnY+btnH/2+2,'pointer',1);
+  }
+
+  if(t>=14){
+    const p=easeInOut(Math.min(1,(t-14)/0.6));
+    drawCheckmark(textBoxX-50,textBoxY+10,1.3,p);
+
+    ctx.globalAlpha=easeInOut(Math.min(1,(t-14.3)/0.8));
+    ctx.fillStyle='#22c55e'; ctx.font='bold 42px system-ui'; ctx.textAlign='center';
+    ctx.fillText('Copy feedback and paste to Claude',W/2,slideY+slideH+65);
+    ctx.textAlign='start'; ctx.globalAlpha=1;
+  }
+
+  if(t<16) requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script>
+</body></html>

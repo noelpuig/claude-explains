@@ -8,7 +8,7 @@ arguments: [topic, duration]
 
 Topic: $topic
 Target duration: $duration minutes
-CLI tool: ../cli/bin/claude-explains.js
+CLI tool: ../cli/bin/claude-video.js
 
 ** MANDATORY FIRST STEP — do this BEFORE anything else, no exceptions: **
 
@@ -36,27 +36,40 @@ before creating any files. Do NOT proceed until they answer ALL of them:
 >
 >    (Fill X, Y, Z with estimates based on the source material and topic complexity.)
 
-After the user answers, choose ONE accent color for the entire video and confirm it.
-Pick based on topic tone (coral for energy, teal for tech, blue for corporate, green
-for nature). State: "I'll use **#XXXXXX** as the accent color throughout."
-The user can override. This color is used in every scene, diagram, and chapter —
-it MUST NOT change across the video.
+After the user answers, spawn the **planner** agent immediately with the topic,
+source material path, user answers, and estimated duration. Do NOT pick colors
+yourself — the planner creates the design brief with the full palette.
 
-Store in progress.json: `"human_review": true/false`, `"max_quality": true/false`,
-`"target_depth": "brief|standard|deep"`, `"estimated_duration_min": N`,
-`"accent_color": "#XXXXXX"`.
-Use the chosen depth as a generation guide — the video doesn't need to be that exact
-length but it sets the pacing, detail level, and chapter count.
-Pass the accent color to EVERY sub-agent delegation.
-DO NOT skip this. DO NOT assume the answers. DO NOT start Stage 1 until all answered.
+When the planner returns:
+- Read `plan/design-brief.json`
+- Confirm the accent color with the user: "I'll use **#XXXXXX** as the accent."
+- Store in progress.json: `"human_review"`, `"max_quality"`, `"target_depth"`,
+  `"estimated_duration_min"`, `"accent_color"`, and the full palette
+- The planner also creates `plan/outline.json` — review it before proceeding
+
+Pass `plan/design-brief.json` path to EVERY sub-agent delegation. Sub-agents
+read their colors from this file. The accent color MUST NOT change across the video.
+
+DO NOT skip this. DO NOT assume the answers. DO NOT start implementation until
+the planner has completed and the user has confirmed the accent color.
 
 ---
 
-### Stage 1: Plan
-1. If source material path was given, read it to understand the content
-2. Read the CLI guides: `node ../cli/bin/claude-explains.js --help-design`, `--help-format`, `--help-components`
-3. Create a project directory at `../projects/$topic/`
-4. Create plan/outline.json with chapter/scene/shot structure
+### Stage 0: References
+Ensure the project's `references/` folder exists and contains the source material
+for the video. This folder is the **single source of factual truth** — all
+explanations, narration, and diagrams must be grounded in its contents. It may
+contain source files, research markdown, external links, or paths to other resources.
+If the user provided source material, confirm it's in `references/` before proceeding.
+
+### Stage 1: Plan (via planner agent)
+1. Spawn planner agent with topic, source material, user answers, estimated duration
+2. Planner reads `references/` and CLI guides, then creates:
+   - `plan/design-brief.json` — color palette (0-saturation dark backgrounds), content plan, watchlist
+   - `plan/outline.json` — chapter/scene structure
+3. Confirm accent color with user
+4. Create a project directory at `../projects/$topic/` (if planner hasn't already),
+   including `references/` for source material
 5. Create plan/chapters/chXX.json for each chapter
 6. Create plan/scenes/chXX_sXX.json for each scene
 
@@ -99,14 +112,14 @@ DO NOT skip this. DO NOT assume the answers. DO NOT start Stage 1 until all answ
 18. ALL automated checks must pass before proceeding
 
 ### Stage 6: Human Review (only if opted in)
-19. Generate review page: `node ../cli/bin/claude-explains.js assembly/video.html --review -o assembly/review`
+19. Generate review page: `node ../cli/bin/claude-video.js assembly/video.html --review -o assembly/review`
 20. Tell the user to open the review HTML in their browser
 21. Wait for the user to paste annotations or say "approved"
 22. If annotations: fix issues, re-run stages 5-6 until approved
 23. This does NOT replace any automated checks — it is additional
 
 ### Stage 7: Render
-24. `node ../cli/bin/claude-explains.js assembly/video.html -o output/video.mp4 --tts --tts-engine supertonic --tts-model supertonic-3`
+24. `node ../cli/bin/claude-video.js assembly/video.html -o output/video.mp4 --tts --tts-engine supertonic --tts-model supertonic-3`
 
 ### Progress Tracking
 After every completed unit, update progress.json. If conversation is compacted, read progress.json to resume.
